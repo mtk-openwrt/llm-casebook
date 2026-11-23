@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="standalone" content="1">
+<title>本地 LLM 測試題庫</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<meta name="share-base" content="https://mtk-openwrt.github.io/llm-casebook/">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+/* Layout: a test-bank field manual. Intro and two reference panels, then a sticky filter bar over one column of
+   question rows; each row unfolds into the question, its checks and every model's answers. */
+:root {
+  --bg: #f5f6f4; --panel: #ffffff; --sunk: #eef0ed; --fg: #1c222a; --muted: #5b6470; --line: #d9dddf;
+  --accent: #245b8c; --accent-fg: #ffffff;
+  --ok: #2c7a52; --ok-bg: #e2f2e9; --bad: #b0392f; --bad-bg: #f8e3e0; --mid: #9a6a12; --mid-bg: #f6ecd6; --na: #7b8590;
+  --f-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14181d; --panel: #1b2027; --sunk: #222830; --fg: #e3e6ea; --muted: #9aa3ad; --line: #2d343d;
+  --accent: #82b2e0; --accent-fg: #10161c;
+  --ok: #72c79b; --ok-bg: #1d3328; --bad: #ec8a80; --bad-bg: #3a2220; --mid: #e0b45e; --mid-bg: #3a2f17; --na: #8a939d; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14181d; --panel: #1b2027; --sunk: #222830; --fg: #e3e6ea; --muted: #9aa3ad; --line: #2d343d;
+  --accent: #82b2e0; --accent-fg: #10161c;
+  --ok: #72c79b; --ok-bg: #1d3328; --bad: #ec8a80; --bad-bg: #3a2220; --mid: #e0b45e; --mid-bg: #3a2f17; --na: #8a939d; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+html, body { margin: 0 }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; line-height: 1.65 }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg) }
+.wrap { max-width: 1080px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 72px }
+h1 { font-size: 1.65rem; margin: 0; text-wrap: balance }
+.lead { color: var(--muted); margin: 8px 0 0; max-width: 70ch }
+.counts { display: flex; flex-wrap: wrap; gap: 6px 24px; margin-top: 14px; color: var(--muted); font-size: .9rem }
+.counts b { color: var(--fg); font-size: 1.1rem; font-variant-numeric: tabular-nums }
+.ref { margin-top: 16px; display: grid; gap: 8px }
+.ref > details { background: var(--panel); border: 1px solid var(--line); border-radius: 10px }
+.ref > details > summary { padding: 10px 14px; cursor: pointer; font-weight: 500 }
+.ref .inner { padding: 0 14px 14px; display: grid; gap: 10px; min-width: 0 }
+.ref p, .ref li { max-width: 75ch; margin: 0 }
+.ref ul { margin: 0; padding-left: 1.3em; display: grid; gap: 4px }
+.tbl { overflow-x: auto }
+table { border-collapse: collapse; width: 100%; font-size: .88rem }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top }
+th { color: var(--muted); font-weight: 500; white-space: nowrap }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap }
+.bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; border-bottom: 1px solid var(--line); margin-top: 20px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center }
+select, input[type="search"] { font: inherit; font-size: .9rem; color: var(--fg); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; min-width: 0; max-width: 100% }
+input[type="search"] { flex: 1 1 200px }
+select:focus-visible, input:focus-visible, summary:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.shown { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; white-space: nowrap }
+.list { display: grid; gap: 8px; margin-top: 14px }
+details.case { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0 }
+details.case[open] { border-color: var(--accent) }
+details.case > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: grid; grid-template-columns: 6.5rem 1fr; gap: 4px 14px; align-items: baseline }
+summary::-webkit-details-marker { display: none }
+.cid { font-family: var(--f-mono); font-size: .85rem; font-weight: 500; color: var(--accent) }
+.q { min-width: 0; overflow-wrap: anywhere }
+.q .turn + .turn::before { content: " → "; color: var(--muted) }
+.meta { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; font-size: .78rem; color: var(--muted); align-items: center }
+.pill { border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; white-space: nowrap }
+.res { border-radius: 999px; padding: 0 8px; font-size: .78rem; font-weight: 500; white-space: nowrap; font-variant-numeric: tabular-nums }
+.res.ok { color: var(--ok); background: var(--ok-bg) } .res.bad { color: var(--bad); background: var(--bad-bg) }
+.res.mid { color: var(--mid); background: var(--mid-bg) } .res.na { color: var(--na); background: var(--sunk) }
+.strip { display: inline-flex; gap: 2px; vertical-align: middle }
+.strip i { width: 8px; height: 8px; border-radius: 2px; background: var(--sunk); display: block }
+.strip i.ok { background: var(--ok) } .strip i.bad { background: var(--bad) } .strip i.mid { background: var(--mid) }
+.body { padding: 4px 14px 16px; display: grid; gap: 4px; border-top: 1px solid var(--line); min-width: 0 }
+.sec h3 { margin: 12px 0 4px; font-size: .78rem; letter-spacing: .08em; color: var(--muted); font-weight: 500 }
+.sec p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 80ch }
+.sec ul { margin: 0; padding-left: 1.3em; overflow-wrap: anywhere }
+pre { margin: 0; background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-family: var(--f-mono); font-size: .78rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere }
+.answers { display: grid; gap: 6px; margin-top: 4px }
+details.ans { border: 1px solid var(--line); border-radius: 8px; background: var(--bg); min-width: 0 }
+details.ans > summary { list-style: none; cursor: pointer; padding: 7px 12px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center }
+.mname { font-weight: 500 }
+.preview { color: var(--muted); font-size: .85rem; flex: 1 1 260px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.runs { padding: 2px 12px 12px; display: grid; gap: 10px; min-width: 0 }
+.run { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 6px; min-width: 0 }
+.run:first-child { border-top: 0 }
+.runhead { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: .82rem; color: var(--muted) }
+.say { display: grid; grid-template-columns: 3.2rem 1fr; gap: 2px 8px; font-size: .9rem }
+.say .who { color: var(--muted); font-size: .8rem; padding-top: 2px }
+.say .txt { white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0 }
+.why { font-size: .85rem; color: var(--bad) }
+.judge { font-size: .85rem; background: var(--sunk); border-radius: 8px; padding: 6px 10px }
+.calls { font-family: var(--f-mono); font-size: .76rem; color: var(--muted); display: grid; gap: 2px; overflow-wrap: anywhere }
+.share { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px }
+.btn { font: inherit; font-size: .85rem; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 4px 12px; border-radius: 999px; cursor: pointer }
+.btn:hover { border-color: var(--accent) }
+.link { font-family: var(--f-mono); font-size: .76rem; color: var(--muted); overflow-wrap: anywhere; min-width: 0; flex: 1 1 240px; user-select: all }
+.qr { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 8px }
+.qr .code { background: #ffffff; padding: 12px; border-radius: 8px; line-height: 0 }
+.qr .code img, .qr .code canvas { width: 168px; height: 168px; image-rendering: pixelated }
+.qr p { margin: 0; font-size: .85rem; color: var(--muted); max-width: 40ch }
+.single { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 8px 14px; margin-top: 14px; font-size: .9rem }
+.status, .empty { color: var(--muted); padding: 28px 0; text-align: center }
+button.more { justify-self: center; margin-top: 10px; font: inherit; font-size: .9rem; border: 1px solid var(--line); background: var(--panel); color: var(--fg); padding: 6px 16px; border-radius: 999px; cursor: pointer }
+@media (max-width: 600px) { details.case > summary { grid-template-columns: 1fr } .meta { grid-column: 1 } .say { grid-template-columns: 1fr } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>本地 LLM 測試題庫</h1>
+    <p class="lead">測試能在自己機器上執行的大型語言模型，能不能勝任兩種工作：用中文語音控制智慧家庭，以及在 14 個產業場域查資料、操作系統、回答問題。每一題都附上各模型的實際回答與判定結果。</p>
+    <div class="counts" id="counts"></div>
+  </header>
+
+  <div class="ref">
+    <details>
+      <summary>這份題庫怎麼測、怎麼評分</summary>
+      <div class="inner">
+        <ul>
+          <li><b>智慧家庭（小家庭、大家庭）</b>：模型連上一套 Home Assistant 測試家，聽使用者的一句話（有的題目是多輪對話），自己決定要開哪個裝置、查哪個感測器。小家庭對模型公開 40 個裝置，大家庭公開 148 個，名稱相近的裝置更多，比較容易搞混。同一題在兩個家各考一次。</li>
+          <li><b>智慧家庭的評分</b>：題目結束後直接比對每個裝置的狀態，該動的有沒有動、不該動的有沒有動，再檢查回覆內容，例如問溫度時有沒有說出正確數字。每題跑 3 次，3 次都對才算穩定通過。</li>
+          <li><b>產業場域</b>：每個場域有一位虛擬助理，可以用一組模擬工具查資料或寫入系統，例如查溫室感測器、開維修單。題目分成 L1 單一查詢、L2 多步驟、L3 跨工具推理、L4 長文件分析，加上陷阱題（要求做危險或越權的事、或資訊不足要反問）。</li>
+          <li><b>產業場域的評分</b>：先自動檢查有沒有呼叫該呼叫的工具、參數對不對、必要的數字與編號有沒有出現；L2 以上有評分標準的題目，再交給 AI 裁判（Claude）逐項判定，並區分「有錯」與「只是漏講」。</li>
+          <li><b>正規表示式</b>：部分自動檢查用正規表示式寫成，用來容許各種正確寫法（例如「2 號」「二號」都算），看起來比較難讀；每題的備註有用中文說明在檢查什麼。</li>
+        </ul>
+      </div>
+    </details>
+    <details>
+      <summary>受測模型</summary>
+      <div class="inner">
+        <p>所有模型都用 llama.cpp 在同一台機器上執行（GGUF 格式）。Q4_K_M 與 Q8_0 是量化等級，Q8_0 比較大、通常比較準。「思考開」表示模型先在內部推理再回答。</p>
+        <div class="tbl"><table id="models"></table></div>
+      </div>
+    </details>
+    <details>
+      <summary>測試家裡有哪些裝置</summary>
+      <div class="inner">
+        <p>小家庭只有標示「小家庭」的 40 個裝置；大家庭是全部 148 個。</p>
+        <div class="tbl"><table id="devices"></table></div>
+      </div>
+    </details>
+  </div>
+
+  <div class="bar">
+    <select id="f-dom" aria-label="場域"></select>
+    <select id="f-type" aria-label="題型"></select>
+    <select id="f-model" aria-label="模型"></select>
+    <select id="f-res" aria-label="結果"></select>
+    <input type="search" id="f-q" placeholder="搜尋題號、題目、回答檢查…" aria-label="搜尋">
+    <span class="shown" id="shown"></span>
+  </div>
+
+  <div class="single" id="single" hidden><span id="single-text"></span><button class="btn" id="single-all">顯示全部題目</button></div>
+  <div class="list" id="list"><div class="status">載入題庫中…</div></div>
+  <div style="display:grid"><button class="more" id="more" hidden>再顯示 100 題</button></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const LEVELS = ["L1", "L2", "L3", "L4", "TRAP"];
+let IX, DOM = {}, MOD = {}, limit = 100, current = [], single = null;
+const ANS = {}, BYKEY = {};
+// Each question's link is <page>#<domain>-<id>, e.g. #home-s-B19 or #agri-AGR-L1-04 (ASCII only, so it survives
+// QR codes and the artifact viewer). The page's own address is used when it is served from a normal web host
+// (GitHub Pages); set the share-base meta (export_casebook.py --share-base) when the page is embedded elsewhere.
+const keyOf = c => `${c.domain}-${c.id}`;
+const STANDALONE = !!document.querySelector('meta[name="standalone"]');
+function shareBase() {
+  const meta = document.querySelector('meta[name="share-base"]')?.content || "";
+  if (STANDALONE && /^https?:$/.test(location.protocol)) return location.origin + location.pathname;
+  return meta || (location.origin + location.pathname);
+}
+const shareUrl = c => `${shareBase()}#${keyOf(c)}`;
+const ansFile = c => c.domain.startsWith("home") ? `${c.domain}-${c.type}` : c.domain;
+
+function recall(k) { try { return localStorage.getItem(k) } catch (e) { return null } }
+function remember(k, v) { try { localStorage.setItem(k, v) } catch (e) {} }
+
+function resClass(s) { if (!s || !s[1]) return "na"; return s[0] === s[1] ? "ok" : s[0] === 0 ? "bad" : "mid" }
+function resText(s) {
+  if (!s) return "沒測";
+  if (!s[1]) return "待評";
+  if (s[2] === 1) return s[0] ? "通過" : "不通過";
+  return `${s[0]}/${s[1]} 次通過`;
+}
+
+function initFilters() {
+  $("f-dom").innerHTML = `<option value="">全部場域（${IX.domains.length}）</option>` +
+    IX.domains.map(d => `<option value="${d.id}">${esc(d.name)}</option>`).join("");
+  $("f-model").innerHTML = `<option value="">全部模型</option>` + IX.models.map(m => `<option value="${m.key}">${esc(m.label)}</option>`).join("");
+  $("f-res").innerHTML = `<option value="">全部結果</option><option value="anybad">有模型答錯</option><option value="allok">所有模型都答對</option>`
+    + `<option value="bad">選定模型答錯</option><option value="ok">選定模型全對</option>`;
+  setTypeOptions();
+}
+
+function setTypeOptions() {
+  const d = $("f-dom").value;
+  const rows = IX.cases.filter(c => !d || c.domain === d);
+  const types = [...new Map(rows.map(c => [c.type, c.type_name])).entries()]
+    .sort((a, b) => (LEVELS.indexOf(a[0]) - LEVELS.indexOf(b[0])) || a[0].localeCompare(b[0]));
+  $("f-type").innerHTML = `<option value="">全部題型</option>` + types.map(([t, n]) => `<option value="${esc(t)}">${esc(t)} ${esc(n)}</option>`).join("");
+}
+
+function hay(c) {
+  return (c._h ||= [c.id, DOM[c.domain].name, c.type_name, ...c.question, ...c.checks, c.rubric, c.reference, c.notes, c.tags.join(" ")].join("\n").toLowerCase());
+}
+
+function filtered() {
+  if (single) return [single];
+  const d = $("f-dom").value, t = $("f-type").value, m = $("f-model").value, r = $("f-res").value, q = $("f-q").value.trim().toLowerCase();
+  return IX.cases.filter(c => {
+    if (d && c.domain !== d) return false;
+    if (t && c.type !== t) return false;
+    if (m && !c.score[m]) return false;
+    if (r) {
+      const sc = Object.values(c.score).filter(s => s[1]);
+      if (r === "anybad" && !sc.some(s => s[0] < s[1])) return false;
+      if (r === "allok" && !(sc.length && sc.every(s => s[0] === s[1]))) return false;
+      if ((r === "bad" || r === "ok") && m) {
+        const s = c.score[m];
+        if (!s || !s[1]) return false;
+        if (r === "bad" && s[0] === s[1]) return false;
+        if (r === "ok" && s[0] !== s[1]) return false;
+      }
+    }
+    return !q || hay(c).includes(q);
+  });
+}
+
+function strip(c) {
+  return `<span class="strip" aria-hidden="true">${IX.models.filter(m => c.score[m.key]).map(m => `<i class="${resClass(c.score[m.key])}" title="${esc(m.label)}"></i>`).join("")}</span>`;
+}
+
+function row(c, i) {
+  const m = $("f-model").value;
+  const tested = Object.values(c.score).filter(s => s[1]);
+  const allok = tested.filter(s => s[0] === s[1]).length;
+  const summary = tested.length ? `${tested.length} 個模型作答，${allok} 個全對` : (Object.keys(c.score).length ? "等待評分" : "還沒有模型作答");
+  return `<details class="case" data-i="${i}"><summary><span class="cid">${esc(c.id)}</span>
+    <span class="q">${c.question.map(t => `<span class="turn">${esc(t.length > 150 ? t.slice(0, 150) + "…" : t)}</span>`).join("")}</span>
+    <span class="meta">${$("f-dom").value ? "" : `<span class="pill">${esc(DOM[c.domain].name)}</span>`}
+      <span class="pill">${esc(c.type)} ${esc(c.type_name)}</span>${c.tags.map(t => `<span class="pill">${esc(t)}</span>`).join("")}
+      ${m ? `<span class="res ${resClass(c.score[m])}">${esc(MOD[m].label)}：${resText(c.score[m])}</span>` : `${strip(c)}<span>${summary}</span>`}</span>
+    </summary><div class="body"></div></details>`;
+}
+
+function render() {
+  current = filtered();
+  $("shown").textContent = single ? "單題檢視" : `${current.length} / ${IX.cases.length} 題`;
+  $("single").hidden = !single;
+  if (single) $("single-text").textContent = `正在看 ${DOM[single.domain].name} 的 ${single.id}`;
+  $("list").innerHTML = current.length ? current.slice(0, limit).map(row).join("") : `<div class="empty">沒有符合條件的題目，試著放寬篩選或換個關鍵字。</div>`;
+  $("more").hidden = current.length <= limit;
+  if (single) { const d = $("list").querySelector("details.case"); if (d) d.open = true }
+}
+
+function route() {
+  const k = decodeURIComponent(location.hash.slice(1));
+  const c = BYKEY[k] || null;
+  if (c === single) return;
+  single = c;
+  limit = 100;
+  render();
+  if (c) window.scrollTo({ top: $("single").offsetTop - 8 });
+}
+window.addEventListener("hashchange", route);
+$("single-all").addEventListener("click", () => {
+  single = null;
+  try { history.replaceState(null, "", location.pathname + location.search) } catch (e) { location.hash = "" }
+  render();
+});
+
+function shareBox(c) {
+  const url = shareUrl(c);
+  return `<div class="share"><button class="btn" data-copy>複製這題的連結</button><button class="btn" data-qr>顯示 QR code</button>
+    <span class="link">${esc(url)}</span></div><div class="qr" data-qrbox hidden><div class="code"></div>
+    <p>用手機相機掃描，會直接打開這一題。${STANDALONE ? `<br><button class="btn" data-qrsave style="margin-top:8px">下載 QR 圖檔</button>` : ""}</p></div>`;
+}
+
+$("list").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const d = b.closest("details.case");
+  const c = d && current[+d.dataset.i];
+  if (!c) return;
+  if (b.hasAttribute("data-copy")) {
+    const url = shareUrl(c);
+    const done = () => { b.textContent = "已複製"; setTimeout(() => b.textContent = "複製這題的連結", 1500) };
+    const fallback = () => { const s = window.getSelection(), r = document.createRange(); r.selectNodeContents(d.querySelector(".link")); s.removeAllRanges(); s.addRange(r); b.textContent = "已選取，請按複製" };
+    try { navigator.clipboard.writeText(url).then(done, fallback) } catch (err) { fallback() }
+  } else if (b.hasAttribute("data-qr")) {
+    const box = d.querySelector("[data-qrbox]");
+    box.hidden = !box.hidden;
+    b.textContent = box.hidden ? "顯示 QR code" : "隱藏 QR code";
+    const code = box.querySelector(".code");
+    if (!box.hidden && !code.childElementCount) {
+      if (typeof QRCode === "undefined") { code.textContent = "QR code 元件載入失敗，請重新整理頁面。"; return }
+      new QRCode(code, { text: shareUrl(c), width: 336, height: 336, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+    }
+  } else if (b.hasAttribute("data-qrsave")) {
+    const cv = d.querySelector("[data-qrbox] canvas");
+    if (!cv) return;
+    const a = document.createElement("a");
+    a.href = cv.toDataURL("image/png");
+    a.download = `QR-${keyOf(c)}.png`;
+    a.click();
+  }
+});
+
+function sec(t, html) { return html ? `<div class="sec"><h3>${t}</h3>${html}</div>` : "" }
+const ul = a => a && a.length ? `<ul>${a.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+
+function caseBody(c) {
+  const turns = c.question.length > 1 ? `<ol style="margin:0;padding-left:1.4em">${c.question.map(t => `<li>${esc(t)}</li>`).join("")}</ol>` : `<p>${esc(c.question[0])}</p>`;
+  return shareBox(c) + sec("使用者說的話", turns)
+    + sec("題目開始前的裝置狀態", ul(c.setup))
+    + sec("附帶文件", c.docs.length && `<p>${esc(c.docs.join("、"))}</p>`)
+    + sec("助理可用的工具", c.tools.length && `<p>${esc(c.tools.join("、"))}</p>`)
+    + sec(c.domain.startsWith("home") ? "通過條件" : "自動檢查", c.domain.startsWith("home") ? ul(c.checks) : (c.checks.length && `<pre>${esc(c.checks.join("\n"))}</pre>`))
+    + sec("AI 裁判評分標準", c.rubric && `<p>${esc(c.rubric)}</p>`)
+    + sec("參考答案", c.reference && `<p>${esc(c.reference)}</p>`)
+    + sec("來源", c.source && `<p>改寫自公開資料集 ${esc(c.source)}；只跑 1 次，分數另計。</p>`)
+    + sec("備註", c.notes && `<p>${esc(c.notes)}</p>`)
+    + `<div class="sec"><h3>各模型的回答</h3><div class="answers" data-answers>${Object.keys(c.score).length ? `<div class="status">載入回答中…</div>` : `<p>還沒有模型作答這一題。</p>`}</div></div>`;
+}
+
+function runHtml(c, x) {
+  const res = x.ok === true ? `<span class="res ok">通過</span>` : x.ok === false ? `<span class="res bad">不通過</span>` : `<span class="res na">待評</span>`;
+  const turns = x.turns.map((t, k) => (t.q ? `<span class="who">使用者</span><span class="txt">${esc(t.q)}</span>` : "")
+    + `<span class="who">模型</span><span class="txt">${t.a ? esc(t.a) : "<i>（沒有文字回覆）</i>"}</span>`).join("");
+  const j = x.judge && x.judge.reason ? `<div class="judge">AI 裁判：${x.judge.verdict === "pass" ? "通過" : "不通過"}${x.judge.kind ? `（${esc(x.judge.kind)}）` : ""}。${esc(x.judge.reason)}</div>` : "";
+  const why = !x.ok && (x.why.length || (x.detail || []).length) ? `<div class="why">${esc(x.why.join("；"))}${x.detail && x.detail.length ? `<span style="color:var(--muted)">　${esc(x.detail.join("；"))}</span>` : ""}</div>` : "";
+  const calls = x.calls.length ? `<div class="calls">${x.calls.map(k => `<span>→ ${esc(k.n)}(${esc(k.a)})${k.s && k.s !== "ok" ? `　[${esc(k.s)}]` : ""}</span>`).join("")}</div>` : `<div class="calls"><span>（沒有呼叫工具）</span></div>`;
+  const extra = [x.ms ? `${(x.ms / 1000).toFixed(1)} 秒` : "", x.ctx ? `context ${x.ctx / 1024}k` : ""].filter(Boolean).join("・");
+  return `<div class="run"><div class="runhead">${x.run && c.domain.startsWith("home") && !c.aux ? `<span>第 ${x.run} 次</span>` : ""}${res}<span>${extra}</span></div>
+    <div class="say">${turns}</div>${calls}${why}${j}</div>`;
+}
+
+async function loadAnswers(dom) {
+  if (!ANS[dom]) ANS[dom] = fetch(`answers/${dom}.json`).then(r => { if (!r.ok) throw new Error(r.status); return r.json() });
+  return ANS[dom];
+}
+
+async function fillAnswers(el, c) {
+  const box = el.querySelector("[data-answers]");
+  if (!Object.keys(c.score).length) return;
+  try {
+    const per = (await loadAnswers(ansFile(c)))[c.id] || {};
+    const sel = $("f-model").value;
+    box.innerHTML = IX.models.filter(m => per[m.key]).map(m => {
+      const s = c.score[m.key], lst = per[m.key];
+      const first = (lst.find(x => x.ok === false) || lst[0]).turns.map(t => t.a).filter(Boolean).join(" ／ ");
+      return `<details class="ans"${sel === m.key ? " open" : ""}><summary><span class="mname">${esc(m.label)}</span>
+        <span class="res ${resClass(s)}">${resText(s)}</span><span class="preview">${esc(first.slice(0, 120))}</span></summary>
+        <div class="runs">${lst.map(x => runHtml(c, x)).join("")}</div></details>`;
+    }).join("");
+  } catch (e) { box.innerHTML = `<p class="why">回答載入失敗（${esc(e.message)}），請重新整理頁面。</p>` }
+}
+
+$("list").addEventListener("toggle", e => {
+  const d = e.target;
+  if (!d.classList || !d.classList.contains("case") || !d.open || d.dataset.filled) return;
+  const c = current[+d.dataset.i];
+  d.querySelector(".body").innerHTML = caseBody(c);
+  d.dataset.filled = 1;
+  fillAnswers(d, c);
+}, true);
+$("more").addEventListener("click", () => { limit += 100; render() });
+$("f-dom").addEventListener("change", () => { setTypeOptions(); limit = 100; remember("cb-dom", $("f-dom").value); render() });
+["f-type", "f-model", "f-res"].forEach(id => $(id).addEventListener("change", () => { limit = 100; render() }));
+let tm; $("f-q").addEventListener("input", () => { clearTimeout(tm); tm = setTimeout(() => { limit = 100; render() }, 150) });
+
+function refTables() {
+  const dn = Object.fromEntries(IX.domains.map(d => [d.id, d.name]));
+  $("models").innerHTML = `<thead><tr><th>模型</th><th>開發者</th><th>參數量</th><th>量化</th><th>設定</th><th>作答題數</th><th>測過的場域</th></tr></thead><tbody>`
+    + IX.models.map(m => `<tr><td>${esc(m.label)}</td><td>${esc(m.developer)}</td><td class="num">${esc(m.size)}</td><td>${esc(m.quant)}</td><td>${esc(m.setting)}</td><td class="num">${m.answered}${m.note ? `<br><span style="color:var(--muted)">${esc(m.note)}</span>` : ""}</td><td>${m.domains.length === IX.domains.length ? "全部" : esc(m.domains.map(d => dn[d]).join("、"))}</td></tr>`).join("") + `</tbody>`;
+  const devs = [...IX.devices].sort((a, b) => String(a.area || "").localeCompare(String(b.area || ""), "zh-Hant") || String(a.name || "").localeCompare(String(b.name || ""), "zh-Hant"));
+  $("devices").innerHTML = `<thead><tr><th>區域</th><th>裝置</th><th>類型</th><th>出現在</th></tr></thead><tbody>`
+    + devs.map(d => `<tr><td>${esc(d.area)}</td><td>${esc(d.name)}</td><td>${esc(d.domain)}</td><td>${d.small ? "小家庭、大家庭" : "大家庭"}</td></tr>`).join("") + `</tbody>`;
+}
+
+fetch("index.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json() }).then(ix => {
+  IX = ix;
+  IX.domains.forEach(d => DOM[d.id] = d);
+  IX.models.forEach(m => MOD[m.key] = m);
+  IX.cases.forEach(c => BYKEY[keyOf(c)] = c);
+  const uniq = new Set(IX.cases.map(c => c.domain.startsWith("home") ? "home:" + c.id : c.domain + ":" + c.id)).size;
+  $("counts").innerHTML = `<span><b>${IX.domains.length}</b> 個場域</span><span><b>${uniq}</b> 道題目（智慧家庭題在兩個家各考一次，共 ${IX.cases.length} 題次）</span>`
+    + `<span><b>${IX.models.length}</b> 個模型設定</span><span>資料更新：${esc(IX.generated.replace("T", " "))}</span>`;
+  initFilters();
+  const saved = recall("cb-dom");
+  if (saved && DOM[saved]) { $("f-dom").value = saved; setTypeOptions() }
+  refTables();
+  single = BYKEY[decodeURIComponent(location.hash.slice(1))] || null;
+  render();
+  if (single) window.scrollTo({ top: $("single").offsetTop - 8 });
+}).catch(e => { $("list").innerHTML = `<div class="status">題庫載入失敗（${esc(e.message)}），請重新整理頁面。</div>` });
+</script>
+
+</html>
