@@ -156,7 +156,7 @@ button.more { justify-self: center; margin-top: 10px; font: inherit; font-size: 
     <select id="f-type" aria-label="題型"></select>
     <select id="f-model" aria-label="模型"></select>
     <select id="f-res" aria-label="結果"></select>
-    <details class="pick" id="pick"><summary id="pick-sum">回答顯示：3 個模型</summary><div class="pickpanel" id="pick-panel"></div></details>
+    <details class="pick" id="pick"><summary id="pick-sum">回答顯示：4 個模型</summary><div class="pickpanel" id="pick-panel"></div></details>
     <input type="search" id="f-q" placeholder="搜尋題號、題目、回答檢查…" aria-label="搜尋">
     <span class="shown" id="shown"></span>
   </div>
@@ -337,14 +337,14 @@ function caseBody(c) {
 }
 
 // Which models' answers are shown inside an opened question (per viewer, remembered in localStorage).
-const DEFAULT_SHOW = ["qwen3-1.7b", "qwen3.5-9b", "qwen3.5-35b-a3b-think"];
-let SHOW = (() => { try { const v = JSON.parse(recall("cb-show") || "null"); return Array.isArray(v) ? new Set(v) : new Set(DEFAULT_SHOW) } catch (e) { return new Set(DEFAULT_SHOW) } })();
-function setShow(keys) { SHOW = new Set(keys); remember("cb-show", JSON.stringify([...SHOW])); renderPick(); refreshOpen() }
+const DEFAULT_SHOW = ["qwen3-1.7b", "qwen3.5-9b", "qwen3.5-35b-a3b-think", "qwen3.5-35b-a3b-nothink"];
+let SHOW = (() => { try { const v = JSON.parse(recall("cb-show-v2") || "null"); return Array.isArray(v) ? new Set(v) : new Set(DEFAULT_SHOW) } catch (e) { return new Set(DEFAULT_SHOW) } })();
+function setShow(keys) { SHOW = new Set(keys); remember("cb-show-v2", JSON.stringify([...SHOW])); renderPick(); refreshOpen() }
 function refreshOpen() { document.querySelectorAll("details.case[open][data-filled]").forEach(d => fillAnswers(d, current[+d.dataset.i])) }
 function renderPick() {
   const n = IX.models.filter(m => SHOW.has(m.key)).length;
   $("pick-sum").textContent = `回答顯示：${n} 個模型`;
-  $("pick-panel").innerHTML = `<div class="row"><button class="btn" data-pickset="default">預設三個</button><button class="btn" data-pickset="all">全部</button><button class="btn" data-pickset="none">清除</button></div>`
+  $("pick-panel").innerHTML = `<div class="row"><button class="btn" data-pickset="default">預設四個</button><button class="btn" data-pickset="all">全部</button><button class="btn" data-pickset="none">清除</button></div>`
     + IX.models.map(m => `<label><input type="checkbox" data-pick="${m.key}"${SHOW.has(m.key) ? " checked" : ""}>${esc(m.label)}</label>`).join("");
 }
 
