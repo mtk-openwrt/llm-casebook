@@ -74,16 +74,15 @@ summary::-webkit-details-marker { display: none }
 .sec ul { margin: 0; padding-left: 1.3em; overflow-wrap: anywhere }
 pre { margin: 0; background: var(--sunk); border-radius: 8px; padding: 8px 10px; font-family: var(--f-mono); font-size: .78rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere }
 .answers { display: grid; gap: 6px; margin-top: 4px }
-.anshead { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin: 12px 0 4px }
-.anshead h3 { margin: 0 }
 details.pick { position: relative }
 details.pick > summary { list-style: none; cursor: pointer; font-size: .82rem; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 2px 12px }
 details.pick > summary::-webkit-details-marker { display: none }
 details.pick > summary::after { content: " ▾"; color: var(--muted) }
 details.pick[open] > summary { border-color: var(--accent) }
-.pickpanel { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; min-width: 260px; max-width: min(360px, calc(100vw - 32px)); max-height: 360px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.12); padding: 8px 10px; display: grid; gap: 2px }
+details.pick > summary { padding: 6px 12px; font-size: .9rem; border-radius: 8px }
+@media (max-width: 600px) { .pickpanel { left: auto; right: 0 } }
+.pickpanel { position: absolute; z-index: 6; top: calc(100% + 4px); left: 0; min-width: 260px; max-width: min(360px, calc(100vw - 32px)); max-height: 360px; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.12); padding: 8px 10px; display: grid; gap: 2px }
 .pickpanel label { display: flex; gap: 8px; align-items: center; font-size: .88rem; padding: 3px 2px; cursor: pointer }
-.pickpanel label.none { color: var(--muted) }
 .pickpanel .row { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line) }
 .pickpanel .row .btn { font-size: .78rem; padding: 2px 10px }
 .hidden-note { font-size: .82rem; color: var(--muted) }
@@ -157,6 +156,7 @@ button.more { justify-self: center; margin-top: 10px; font: inherit; font-size: 
     <select id="f-type" aria-label="題型"></select>
     <select id="f-model" aria-label="模型"></select>
     <select id="f-res" aria-label="結果"></select>
+    <details class="pick" id="pick"><summary id="pick-sum">回答顯示：3 個模型</summary><div class="pickpanel" id="pick-panel"></div></details>
     <input type="search" id="f-q" placeholder="搜尋題號、題目、回答檢查…" aria-label="搜尋">
     <span class="shown" id="shown"></span>
   </div>
@@ -333,20 +333,19 @@ function caseBody(c) {
     + sec("參考答案", c.reference && `<p>${esc(c.reference)}</p>`)
     + sec("來源", c.source && `<p>改寫自公開資料集 ${esc(c.source)}；只跑 1 次，分數另計。</p>`)
     + sec("備註", c.notes && `<p>${esc(c.notes)}</p>`)
-    + `<div class="sec"><div class="anshead"><h3>各模型的回答</h3><span data-pick></span></div><div class="answers" data-answers>${Object.keys(c.score).length ? `<div class="status">載入回答中…</div>` : `<p>還沒有模型作答這一題。</p>`}</div></div>`;
+    + `<div class="sec"><h3>各模型的回答</h3><div class="answers" data-answers>${Object.keys(c.score).length ? `<div class="status">載入回答中…</div>` : `<p>還沒有模型作答這一題。</p>`}</div></div>`;
 }
 
 // Which models' answers are shown inside an opened question (per viewer, remembered in localStorage).
 const DEFAULT_SHOW = ["qwen3-1.7b", "qwen3.5-9b", "qwen3.5-35b-a3b-think"];
 let SHOW = (() => { try { const v = JSON.parse(recall("cb-show") || "null"); return Array.isArray(v) ? new Set(v) : new Set(DEFAULT_SHOW) } catch (e) { return new Set(DEFAULT_SHOW) } })();
-function setShow(keys) { SHOW = new Set(keys); remember("cb-show", JSON.stringify([...SHOW])); refreshOpen() }
+function setShow(keys) { SHOW = new Set(keys); remember("cb-show", JSON.stringify([...SHOW])); renderPick(); refreshOpen() }
 function refreshOpen() { document.querySelectorAll("details.case[open][data-filled]").forEach(d => fillAnswers(d, current[+d.dataset.i])) }
-function pickHtml(c, per) {
+function renderPick() {
   const n = IX.models.filter(m => SHOW.has(m.key)).length;
-  return `<details class="pick"><summary>顯示模型：${n}／${IX.models.length}</summary><div class="pickpanel">
-    <div class="row"><button class="btn" data-pickset="default">預設三個</button><button class="btn" data-pickset="answered">這題有作答的</button><button class="btn" data-pickset="all">全部</button><button class="btn" data-pickset="none">清除</button></div>
-    ${IX.models.map(m => `<label class="${per[m.key] ? "" : "none"}"><input type="checkbox" data-pick="${m.key}"${SHOW.has(m.key) ? " checked" : ""}>${esc(m.label)}${per[m.key] ? "" : "（這題未作答）"}</label>`).join("")}
-  </div></details>`;
+  $("pick-sum").textContent = `回答顯示：${n} 個模型`;
+  $("pick-panel").innerHTML = `<div class="row"><button class="btn" data-pickset="default">預設三個</button><button class="btn" data-pickset="all">全部</button><button class="btn" data-pickset="none">清除</button></div>`
+    + IX.models.map(m => `<label><input type="checkbox" data-pick="${m.key}"${SHOW.has(m.key) ? " checked" : ""}>${esc(m.label)}</label>`).join("");
 }
 
 function runHtml(c, x) {
@@ -372,20 +371,16 @@ async function fillAnswers(el, c) {
   try {
     const per = (await loadAnswers(ansFile(c)))[c.id] || {};
     const sel = $("f-model").value;
-    const pk = el.querySelector("[data-pick]");
-    const wasOpen = !!pk.querySelector("details.pick[open]");
-    pk.innerHTML = pickHtml(c, per);
-    if (wasOpen) pk.querySelector("details.pick").open = true;
     const answered = IX.models.filter(m => per[m.key]);
     const shown = answered.filter(m => SHOW.has(m.key) || m.key === sel);
     const hidden = answered.length - shown.length;
-    box.innerHTML = (shown.length ? "" : `<p class="hidden-note">目前沒有選擇要顯示的模型，請用上方的「顯示模型」選單勾選。</p>`) + shown.map(m => {
+    box.innerHTML = (shown.length ? "" : `<p class="hidden-note">目前沒有選擇要顯示回答的模型，請用頁面上方的「回答顯示」選單勾選。</p>`) + shown.map(m => {
       const s = c.score[m.key], lst = per[m.key];
       const first = (lst.find(x => x.ok === false) || lst[0]).turns.map(t => t.a).filter(Boolean).join(" ／ ");
       return `<details class="ans"${sel === m.key ? " open" : ""}><summary><span class="mname">${esc(m.label)}</span>
         <span class="res ${resClass(s)}">${resText(s)}</span><span class="preview">${esc(first.slice(0, 120))}</span></summary>
         <div class="runs">${lst.map(x => runHtml(c, x)).join("")}</div></details>`;
-    }).join("") + (hidden > 0 ? `<p class="hidden-note">另有 ${hidden} 個模型的回答未顯示，可用「顯示模型」選單加入。</p>` : "");
+    }).join("") + (hidden > 0 ? `<p class="hidden-note">另有 ${hidden} 個模型的回答未顯示，可用頁面上方的「回答顯示」選單加入。</p>` : "");
   } catch (e) { box.innerHTML = `<p class="why">回答載入失敗（${esc(e.message)}），請重新整理頁面。</p>` }
 }
 
@@ -397,21 +392,19 @@ $("list").addEventListener("toggle", e => {
   d.dataset.filled = 1;
   fillAnswers(d, c);
 }, true);
-$("list").addEventListener("change", e => {
+$("pick-panel").addEventListener("change", e => {
   const k = e.target.dataset && e.target.dataset.pick;
   if (!k) return;
   const s = new Set(SHOW); e.target.checked ? s.add(k) : s.delete(k); setShow([...s]);
 });
-$("list").addEventListener("click", e => {
+$("pick-panel").addEventListener("click", e => {
   const b = e.target.closest && e.target.closest("[data-pickset]");
   if (!b) return;
   e.preventDefault();
-  const d = b.closest("details.case"), c = d ? current[+d.dataset.i] : null;
   const v = b.dataset.pickset;
   if (v === "default") setShow(DEFAULT_SHOW);
   else if (v === "all") setShow(IX.models.map(m => m.key));
   else if (v === "none") setShow([]);
-  else if (v === "answered" && c) setShow(IX.models.filter(m => c.score[m.key]).map(m => m.key));
 });
 document.addEventListener("click", e => {     // close an open model picker when clicking elsewhere
   document.querySelectorAll("details.pick[open]").forEach(p => { if (!p.contains(e.target)) p.open = false });
@@ -439,6 +432,7 @@ fetch("index.json").then(r => { if (!r.ok) throw new Error(r.status); return r.j
   $("counts").innerHTML = `<span><b>${IX.domains.length}</b> 個場域</span><span><b>${uniq}</b> 道題目（智慧家庭題在兩個家各考一次，共 ${IX.cases.length} 題次）</span>`
     + `<span><b>${IX.models.length}</b> 個模型設定</span><span>資料更新：${esc(IX.generated.replace("T", " "))}</span>`;
   initFilters();
+  renderPick();
   const saved = recall("cb-dom");
   if (saved && DOM[saved]) { $("f-dom").value = saved; setTypeOptions() }
   refTables();
