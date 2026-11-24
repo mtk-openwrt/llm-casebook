@@ -118,7 +118,7 @@ button.more { justify-self: center; margin-top: 10px; font: inherit; font-size: 
 <div class="wrap">
   <header>
     <h1>本地 LLM 測試題庫</h1>
-    <p class="lead">測試能在自己機器上執行的大型語言模型，能不能勝任兩種工作：用中文語音控制智慧家庭，以及在 14 個產業場域查資料、操作系統、回答問題。每一題都附上各模型的實際回答與判定結果。</p>
+    <p class="lead">測試能在自己機器上執行的大型語言模型，能不能勝任兩種工作：用中文語音控制智慧家庭，以及在 14 個產業場域查資料、操作系統、回答問題；另外在一台真的 OpenWrt 路由器（虛擬機）上做網管操作。每一題都附上各模型的實際回答與判定結果。</p>
     <div class="counts" id="counts"></div>
   </header>
 
@@ -131,6 +131,8 @@ button.more { justify-self: center; margin-top: 10px; font: inherit; font-size: 
           <li><b>智慧家庭的評分</b>：題目結束後直接比對每個裝置的狀態，該動的有沒有動、不該動的有沒有動，再檢查回覆內容，例如問溫度時有沒有說出正確數字。每題跑 3 次，3 次都對才算穩定通過。</li>
           <li><b>產業場域</b>：每個場域有一位虛擬助理，可以用一組模擬工具查資料或寫入系統，例如查溫室感測器、開維修單。題目分成 L1 單一查詢、L2 多步驟、L3 跨工具推理、L4 長文件分析，加上陷阱題（要求做危險或越權的事、或資訊不足要反問）。</li>
           <li><b>產業場域的評分</b>：先自動檢查有沒有呼叫該呼叫的工具、參數對不對、必要的數字與編號有沒有出現；L2 以上有評分標準的題目，再交給 AI 裁判（Claude）逐項判定，並區分「有錯」與「只是漏講」。</li>
+          <li><b>網通實機（OpenWrt）</b>：助理的工具直接接到一台 OpenWrt 虛擬路由器（2.4G／5G 無線網路，加上模擬的手機、筆電、智慧插座）。每題開始前先重設路由器，再依題目埋好情境（例如加假鄰居 AP、讓某台裝置用錯密碼）；題目結束後除了檢查回覆，還直接比對路由器最後的設定、裝置有沒有重新連上、有沒有改到不該改的設定。這個場域只測三個模型：Qwen3.5-35B-A3B（思考開）、Qwen3.5-9B、Qwen3-1.7B。</li>
+          <li><b>網通實機的英文題</b>：一半以上的題目是英文提問，系統規則要求用相同語言回答，但三個模型幾乎都用中文回答，正式成績因此判不通過。回答下方標示「分析用，不計入成績」的一行，是另外請 AI 裁判忽略語言、只看內容的判定，方便比較。路由器的系統日誌在題目之間不會清除，模型可能看到前面題目留下的紀錄。</li>
           <li><b>正規表示式</b>：部分自動檢查用正規表示式寫成，用來容許各種正確寫法（例如「2 號」「二號」都算），看起來比較難讀；每題的備註有用中文說明在檢查什麼。</li>
         </ul>
       </div>
@@ -325,7 +327,7 @@ const ul = a => a && a.length ? `<ul>${a.map(x => `<li>${esc(x)}</li>`).join("")
 function caseBody(c) {
   const turns = c.question.length > 1 ? `<ol style="margin:0;padding-left:1.4em">${c.question.map(t => `<li>${esc(t)}</li>`).join("")}</ol>` : `<p>${esc(c.question[0])}</p>`;
   return shareBox(c) + sec("使用者說的話", turns)
-    + sec("題目開始前的裝置狀態", ul(c.setup))
+    + sec(c.domain === "netlive" ? "題目開始前對路由器做的設定" : "題目開始前的裝置狀態", ul(c.setup))
     + sec("附帶文件", c.docs.length && `<p>${esc(c.docs.join("、"))}</p>`)
     + sec("助理可用的工具", c.tools.length && `<p>${esc(c.tools.join("、"))}</p>`)
     + sec(c.domain.startsWith("home") ? "通過條件" : "自動檢查", c.domain.startsWith("home") ? ul(c.checks) : (c.checks.length && `<pre>${esc(c.checks.join("\n"))}</pre>`))
